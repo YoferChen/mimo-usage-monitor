@@ -1,0 +1,26 @@
+[project]
+name = "mimo-usage-monitor"
+version = "0.1.0"
+description = "MiMo Token Plan 用量桌面监控（悬浮工具条 / 任务栏部件 / 托盘图标）"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "pystray>=0.19",
+    "Pillow>=10",
+    "pywebview>=5.0",
+    "cryptography>=42",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["mimo_usage_monitor*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
