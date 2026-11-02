@@ -10,7 +10,6 @@ RUN_NAME = "MimoUsageMonitor"
 _BOOL_KEYS = (
     "show_tray",
     "show_floating",
-    "show_taskbar",
     "notify_enabled",
     "autostart",
     "floating_locked",
@@ -26,8 +25,6 @@ def apply_settings(cfg: AppConfig, values: dict) -> AppConfig:
         updates["threshold_pct"] = max(0.0, min(100.0, float(values["threshold_pct"])))
     if "floating_opacity" in values:
         updates["floating_opacity"] = max(0.3, min(1.0, float(values["floating_opacity"])))
-    if values.get("taskbar_align") in ("left", "right"):
-        updates["taskbar_align"] = values["taskbar_align"]
     for key in _BOOL_KEYS:
         if key in values:
             updates[key] = bool(values[key])
@@ -111,14 +108,9 @@ class SettingsDialog:
         opacity.set(cfg.floating_opacity)
         opacity.pack(side="left", fill="x", expand=True)
 
-        f = row("任务栏位置")
-        align_var = tk.StringVar(value="左侧" if cfg.taskbar_align == "left" else "右侧")
-        tk.OptionMenu(f, align_var, "左侧", "右侧").pack(side="left")
-
         checks = {}
         for key, label in (
             ("show_floating", "悬浮工具条"),
-            ("show_taskbar", "任务栏部件"),
             ("show_tray", "显示托盘图标"),
             ("notify_enabled", "额度提醒"),
             ("floating_locked", "锁定悬浮条位置"),
@@ -133,7 +125,6 @@ class SettingsDialog:
                 "refresh_interval_s": int(interval.get()),
                 "threshold_pct": float(threshold.get()),
                 "floating_opacity": float(opacity.get()),
-                "taskbar_align": "left" if align_var.get() == "左侧" else "right",
             }
             values.update({key: var.get() for key, var in checks.items()})
             win.destroy()

@@ -118,7 +118,6 @@ def run() -> None:
     import webbrowser
 
     from .display.floating_bar import FloatingBar
-    from .display.taskbar import DockedFallback, Rect, TaskbarWidget, compute_placement
     from .display.tray import TrayDisplay
     from .settings import SettingsDialog, apply_settings, default_command, set_autostart
 
@@ -153,37 +152,6 @@ def run() -> None:
             return (root.winfo_screenwidth() - rect[2] - 40, 60, rect[2], rect[3])
         return rect
 
-    def make_taskbar():
-        widget = TaskbarWidget(master=root, align=cfg.taskbar_align)
-        if widget.try_embed():
-            return widget
-        rect = None
-        from .display.taskbar import Win32Taskbar
-
-        win32 = Win32Taskbar()
-        taskbar_rect, tray_rect = win32.shell_tray_rect(), win32.tray_notify_rect()
-        if taskbar_rect and tray_rect:
-            rect = compute_placement(
-                taskbar_rect,
-                tray_rect,
-                align=cfg.taskbar_align,
-                left_x=win32.left_cluster_right_edge(),
-            )
-        else:
-            rect = Rect(1200, 1040, 180, 30)
-        return DockedFallback(rect, master=root)
-
-    def set_taskbar_enabled(enabled: bool) -> None:
-        cfg.show_taskbar = enabled
-        config.save_config(data_dir, cfg)
-        if enabled and "taskbar" not in windows:
-            windows["taskbar"] = make_taskbar()
-        elif not enabled and "taskbar" in windows:
-            windows["taskbar"].destroy()
-            del windows["taskbar"]
-        if state["snapshot"] is not None and "taskbar" in windows:
-            windows["taskbar"].update(state["snapshot"])
-
     def set_floating_enabled(enabled: bool) -> None:
         cfg.show_floating = enabled
         config.save_config(data_dir, cfg)
@@ -200,10 +168,12 @@ def run() -> None:
             config.save_config(data_dir, cfg)
         if state["snapshot"] is not None and "floating" in windows:
             windows["floating"].update(state["snapshot"])
+        tray.refresh_menu()
 
     def set_notify_enabled(enabled: bool) -> None:
         cfg.notify_enabled = enabled
         config.save_config(data_dir, cfg)
+        tray.refresh_menu()
 
     def quit_app() -> None:
         loop.stop()
@@ -228,13 +198,10 @@ def run() -> None:
             set_autostart(cfg.autostart, default_command())
             tray.set_visible(cfg.show_tray)
             set_floating_enabled(cfg.show_floating)
-            if "taskbar" in windows:  # 位置/样式变更需重建
-                windows["taskbar"].destroy()
-                del windows["taskbar"]
-            set_taskbar_enabled(cfg.show_taskbar)
             if "floating" in windows:
                 windows["floating"].apply_opacity(cfg.floating_opacity)
                 windows["floating"].set_locked(cfg.floating_locked)
+            tray.refresh_menu()
 
         SettingsDialog(root, cfg, on_apply)
 
@@ -252,7 +219,6 @@ def run() -> None:
     callbacks = {
         "on_refresh": lambda: loop.trigger_now(),
         "on_open_console": gui(open_console),
-        "on_toggle_taskbar": gui(lambda: set_taskbar_enabled("taskbar" not in windows)),
         "on_toggle_notify": gui(lambda: set_notify_enabled(not cfg.notify_enabled)),
         "on_open_settings": gui(open_settings),
         "on_quit": gui(quit_app),
@@ -264,14 +230,11 @@ def run() -> None:
             callbacks, resolved_floating_rect(), cfg.floating_opacity,
             cfg.floating_locked, master=root,
         )
-    if cfg.show_taskbar:
-        windows["taskbar"] = make_taskbar()
 
     menu_items = [
         ("立即刷新", lambda: loop.trigger_now()),
         ("打开控制台", callbacks["on_open_console"]),
         ("悬浮条", callbacks["on_toggle_floating"], lambda: "floating" in windows),
-        ("任务栏部件", callbacks["on_toggle_taskbar"], lambda: "taskbar" in windows),
         ("额度提醒", callbacks["on_toggle_notify"], lambda: cfg.notify_enabled),
         ("重新登录", gui(lambda: run_relogin())),
         ("设置…", callbacks["on_open_settings"], None),

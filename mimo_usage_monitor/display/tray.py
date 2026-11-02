@@ -105,6 +105,13 @@ class TrayDisplay:
     def set_visible(self, visible: bool) -> None:
         self._icon.visible = bool(visible)
 
+    def refresh_menu(self) -> None:
+        """勾选态在建菜单时固化，状态变化后必须重建，否则显示旧值。"""
+        try:
+            self._icon.update_menu()
+        except Exception:
+            pass
+
     def update(self, s: UsageSnapshot) -> None:
         self._snapshot = s
         self._icon.icon = render_percent_icon(s.remaining_pct)

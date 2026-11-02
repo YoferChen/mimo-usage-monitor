@@ -17,7 +17,7 @@ def test_save_load_roundtrip(tmp_path):
     cfg = dataclasses.replace(
         AppConfig(),
         refresh_interval_s=300,
-        show_taskbar=True,
+        notify_enabled=False,
         floating_rect=(10, 20, 380, 76),
     )
     save_config(tmp_path, cfg)

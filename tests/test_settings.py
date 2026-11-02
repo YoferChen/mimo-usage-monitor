@@ -23,7 +23,6 @@ def test_apply_settings_updates_toggles():
         {
             "show_tray": False,
             "show_floating": False,
-            "show_taskbar": True,
             "notify_enabled": False,
             "autostart": True,
             "floating_locked": True,
@@ -31,7 +30,6 @@ def test_apply_settings_updates_toggles():
     )
     assert new.show_tray is False
     assert new.show_floating is False
-    assert new.show_taskbar is True
     assert new.notify_enabled is False
     assert new.autostart is True
     assert new.floating_locked is True
@@ -56,12 +54,6 @@ def test_set_autostart_writes_run_key():
         ("set", RUN_KEY, "MimoUsageMonitor", "pythonw -m mimo_usage_monitor"),
         ("delete", RUN_KEY, "MimoUsageMonitor", None),
     ]
-
-
-def test_apply_settings_taskbar_align():
-    cfg = AppConfig()
-    assert apply_settings(cfg, {"taskbar_align": "left"}).taskbar_align == "left"
-    assert apply_settings(cfg, {"taskbar_align": "diagonal"}).taskbar_align == "right"
 
 
 def test_refresh_loop_set_interval():
