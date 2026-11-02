@@ -38,3 +38,10 @@ def test_refresh_interval_clamped(tmp_path):
 def test_data_dir_env_override(monkeypatch, tmp_path):
     monkeypatch.setenv("MIMO_MONITOR_HOME", str(tmp_path))
     assert data_dir() == tmp_path
+
+
+def test_load_migrates_old_default_rect(tmp_path):
+    (tmp_path / "config.json").write_text(
+        json.dumps({"floating_rect": [0, 0, 380, 76]}), encoding="utf-8"
+    )
+    assert load_config(tmp_path).floating_rect == (0, 0, 360, 36)

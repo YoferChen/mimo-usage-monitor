@@ -14,7 +14,7 @@ class AppConfig:
     show_tray: bool = True
     show_floating: bool = True
     show_taskbar: bool = False
-    floating_rect: tuple[int, int, int, int] = (0, 0, 380, 76)
+    floating_rect: tuple[int, int, int, int] = (0, 0, 360, 36)
     floating_opacity: float = 0.9
     floating_locked: bool = False
     autostart: bool = False
@@ -63,6 +63,8 @@ def load_config(data_dir: Path) -> AppConfig:
 
     cfg = AppConfig(**kwargs)
     cfg.refresh_interval_s = max(30, min(600, int(cfg.refresh_interval_s)))
+    if tuple(cfg.floating_rect) == (0, 0, 380, 76):  # 迁移旧默认尺寸（过大）
+        cfg.floating_rect = (0, 0, 360, 36)
     return cfg
 
 

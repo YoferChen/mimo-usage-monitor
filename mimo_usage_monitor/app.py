@@ -134,6 +134,13 @@ def run() -> None:
     windows: dict[str, object] = {}
     state = {"first": True, "snapshot": None}
 
+    def resolved_floating_rect():
+        rect = cfg.floating_rect
+        if rect[0] == 0 and rect[1] == 0:  # 未放置过 → 屏幕右上
+            root.update_idletasks()
+            return (root.winfo_screenwidth() - rect[2] - 40, 60, rect[2], rect[3])
+        return rect
+
     def make_taskbar():
         widget = TaskbarWidget(master=root)
         if widget.try_embed():
@@ -165,8 +172,8 @@ def run() -> None:
         config.save_config(data_dir, cfg)
         if enabled and "floating" not in windows:
             windows["floating"] = FloatingBar(
-                callbacks, cfg.floating_rect, cfg.floating_opacity, cfg.floating_locked,
-                master=root,
+                callbacks, resolved_floating_rect(), cfg.floating_opacity,
+                cfg.floating_locked, master=root,
             )
         elif not enabled and "floating" in windows:
             rect = windows["floating"].rect()
@@ -183,6 +190,9 @@ def run() -> None:
 
     def quit_app() -> None:
         loop.stop()
+        if "floating" in windows:
+            cfg.floating_rect = windows["floating"].rect()
+            config.save_config(data_dir, cfg)
         for w in windows.values():
             w.destroy()
         tray.stop()
@@ -206,35 +216,43 @@ def run() -> None:
 
         SettingsDialog(root, cfg, on_apply)
 
+    def gui(fn):
+        """pystray 回调运行在自己的线程；GUI 操作一律调度回 tk 主线程执行。"""
+
+        def wrapper(*args, **kwargs):
+            try:
+                root.after(0, lambda: fn(*args, **kwargs))
+            except Exception:
+                fn(*args, **kwargs)
+
+        return wrapper
+
     callbacks = {
         "on_refresh": lambda: loop.trigger_now(),
-        "on_open_console": open_console,
-        "on_toggle_taskbar": lambda: set_taskbar_enabled(not cfg.show_taskbar),
-        "on_toggle_notify": lambda: set_notify_enabled(not cfg.notify_enabled),
-        "on_open_settings": open_settings,
-        "on_quit": quit_app,
-        "on_toggle_floating": lambda: set_floating_enabled(not cfg.show_floating),
+        "on_open_console": gui(open_console),
+        "on_toggle_taskbar": gui(lambda: set_taskbar_enabled("taskbar" not in windows)),
+        "on_toggle_notify": gui(lambda: set_notify_enabled(not cfg.notify_enabled)),
+        "on_open_settings": gui(open_settings),
+        "on_quit": gui(quit_app),
+        "on_toggle_floating": gui(lambda: set_floating_enabled("floating" not in windows)),
     }
 
     if cfg.show_floating:
         windows["floating"] = FloatingBar(
-            callbacks, cfg.floating_rect, cfg.floating_opacity, cfg.floating_locked,
-            master=root,
+            callbacks, resolved_floating_rect(), cfg.floating_opacity,
+            cfg.floating_locked, master=root,
         )
     if cfg.show_taskbar:
         windows["taskbar"] = make_taskbar()
 
     menu_items = [
         ("立即刷新", lambda: loop.trigger_now()),
-        ("打开控制台", open_console),
-        ("悬浮条", lambda: set_floating_enabled(not cfg.show_floating),
-         lambda: cfg.show_floating),
-        ("任务栏部件", lambda: set_taskbar_enabled(not cfg.show_taskbar),
-         lambda: cfg.show_taskbar),
-        ("额度提醒", lambda: set_notify_enabled(not cfg.notify_enabled),
-         lambda: cfg.notify_enabled),
+        ("打开控制台", callbacks["on_open_console"]),
+        ("悬浮条", callbacks["on_toggle_floating"], lambda: "floating" in windows),
+        ("任务栏部件", callbacks["on_toggle_taskbar"], lambda: "taskbar" in windows),
+        ("额度提醒", callbacks["on_toggle_notify"], lambda: cfg.notify_enabled),
         ("设置…", callbacks["on_open_settings"], None),
-        ("退出", quit_app),
+        ("退出", callbacks["on_quit"]),
     ]
     tray = TrayDisplay(menu_items)
 
@@ -242,13 +260,20 @@ def run() -> None:
 
     def on_snapshot(s: UsageSnapshot) -> None:
         state["snapshot"] = s
-        for w in windows.values():
-            w.update(s)
+
+        def render() -> None:
+            for w in list(windows.values()):
+                w.update(s)
+            if cfg.notify_enabled and notifier.update(s, at_startup=state["first"]):
+                title, body = threshold_message(s)
+                tray.notify(title, body)
+            state["first"] = False
+
+        try:
+            root.after(0, render)  # 窗口更新同样调度回主线程（刷新线程安全）
+        except Exception:
+            render()
         tray.update(s)
-        if cfg.notify_enabled and notifier.update(s, at_startup=state["first"]):
-            title, body = threshold_message(s)
-            tray.notify(title, body)
-        state["first"] = False
 
     def on_error(exc: Exception) -> None:
         pass  # 陈旧标记由 RefreshLoop 负责

@@ -54,13 +54,18 @@ class FloatingBar:
             self._root,
             text="—",
             anchor="w",
-            font=("Microsoft YaHei UI", 10),
+            font=("Microsoft YaHei UI", 9),
             bg="#1e1e2e",
             fg="#e0e0e0",
-            padx=10,
-            pady=6,
+            padx=8,
+            pady=3,
         )
         self._label.pack(fill="both", expand=True)
+        self._resize_origin = (0, 0, 0, 0)
+        self._grip = tk.Frame(self._root, width=10, height=10, cursor="size_nw_se", bg="#45475a")
+        self._grip.place(relx=1.0, rely=1.0, anchor="se")
+        self._grip.bind("<Button-1>", self._on_resize_start)
+        self._grip.bind("<B1-Motion>", self._on_resize_motion)
         self._root.bind("<Button-1>", self._on_press)
         self._root.bind("<B1-Motion>", self._on_drag)
         self._root.bind("<Double-Button-1>", lambda _e: self._fire("on_open_console"))
@@ -81,6 +86,22 @@ class FloatingBar:
         x = event.x_root - self._press_offset[0]
         y = event.y_root - self._press_offset[1]
         self._root.geometry(f"+{x}+{y}")
+
+    def _on_resize_start(self, event):
+        self._resize_origin = (
+            event.x_root,
+            event.y_root,
+            self._root.winfo_width(),
+            self._root.winfo_height(),
+        )
+        return "break"
+
+    def _on_resize_motion(self, event):
+        ox, oy, w0, h0 = self._resize_origin
+        w = max(120, w0 + event.x_root - ox)
+        h = max(24, h0 + event.y_root - oy)
+        self._root.geometry(f"{w}x{h}")
+        return "break"
 
     def _on_menu(self, event) -> None:
         menu = self._tk.Menu(self._root, tearoff=0)
