@@ -16,8 +16,9 @@ SNAP = UsageSnapshot(
 
 
 def test_acquire_single_instance_second_call_false():
-    assert acquire_single_instance() is True
-    assert acquire_single_instance() is False
+    name = "Local\\mimo-usage-monitor-test-mutex"
+    assert acquire_single_instance(name) is True
+    assert acquire_single_instance(name) is False
 
 
 def test_refresh_loop_invokes_callbacks():

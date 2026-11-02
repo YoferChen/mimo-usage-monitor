@@ -10,23 +10,23 @@ from .models import UsageSnapshot
 from .notify import ThresholdNotifier, threshold_message
 from .storage import get_default_store
 
-_SINGLETON_MUTEX = None
+DEFAULT_MUTEX_NAME = "Local\\mimo-usage-monitor-singleton"
+_MUTEX_HANDLES: dict = {}
 
 
-def acquire_single_instance() -> bool:
+def acquire_single_instance(name: str = DEFAULT_MUTEX_NAME) -> bool:
     """命名互斥量；False 表示已有实例在运行。"""
-    global _SINGLETON_MUTEX
     import ctypes
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     ERROR_ALREADY_EXISTS = 183
-    handle = kernel32.CreateMutexW(None, True, "Local\\mimo-usage-monitor-singleton")
+    handle = kernel32.CreateMutexW(None, True, name)
     if not handle:
         return False
     if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
         kernel32.CloseHandle(handle)
         return False
-    _SINGLETON_MUTEX = handle  # 保持句柄存活以持有互斥量
+    _MUTEX_HANDLES[name] = handle  # 保持句柄存活以持有互斥量
     return True
 
 
@@ -75,6 +75,9 @@ class RefreshLoop:
     def trigger_now(self) -> None:
         self._wake.set()
 
+    def set_interval(self, interval_s: float) -> None:
+        self._interval = float(interval_s)
+
     def _run(self) -> None:
         while not self._stop_event.is_set():
             self._tick()
@@ -105,6 +108,7 @@ def run() -> None:
     from .display.floating_bar import FloatingBar
     from .display.taskbar import DockedFallback, Rect, TaskbarWidget, compute_placement
     from .display.tray import TrayDisplay
+    from .settings import SettingsDialog, apply_settings, default_command, set_autostart
 
     if not acquire_single_instance():
         print("mimo-usage-monitor 已在运行（单实例）")
@@ -187,12 +191,27 @@ def run() -> None:
     def open_console() -> None:
         webbrowser.open(CONSOLE_URL)
 
+    def open_settings() -> None:
+        def on_apply(values):
+            nonlocal cfg
+            cfg = apply_settings(cfg, values)
+            config.save_config(data_dir, cfg)
+            loop.set_interval(cfg.refresh_interval_s)
+            set_autostart(cfg.autostart, default_command())
+            set_floating_enabled(cfg.show_floating)
+            set_taskbar_enabled(cfg.show_taskbar)
+            if "floating" in windows:
+                windows["floating"].apply_opacity(cfg.floating_opacity)
+                windows["floating"].set_locked(cfg.floating_locked)
+
+        SettingsDialog(root, cfg, on_apply)
+
     callbacks = {
         "on_refresh": lambda: loop.trigger_now(),
         "on_open_console": open_console,
         "on_toggle_taskbar": lambda: set_taskbar_enabled(not cfg.show_taskbar),
         "on_toggle_notify": lambda: set_notify_enabled(not cfg.notify_enabled),
-        "on_open_settings": lambda: None,  # Task 13 接线设置对话框
+        "on_open_settings": open_settings,
         "on_quit": quit_app,
         "on_toggle_floating": lambda: set_floating_enabled(not cfg.show_floating),
     }
