@@ -71,12 +71,21 @@ class TrayDisplay:
         self._pystray = pystray
         self._on_notify = on_notify
         self._snapshot: UsageSnapshot | None = None
-        menu = pystray.Menu(
-            *[
-                pystray.MenuItem(label, action) if action is not None else pystray.Menu.SEPARATOR
-                for label, action in menu_items
-            ]
-        )
+
+        def build_item(item):
+            if len(item) == 2:
+                label, action = item
+                checked = None
+            else:
+                label, action, checked = item
+            if action is None and checked is None and label == "sep":
+                return pystray.Menu.SEPARATOR
+            kwargs = {}
+            if checked is not None:
+                kwargs["checked"] = lambda _item, fn=checked: fn()
+            return pystray.MenuItem(label, action, **kwargs)
+
+        menu = pystray.Menu(*[build_item(item) for item in menu_items])
         self._icon = pystray.Icon(
             "mimo-usage-monitor",
             icon=render_percent_icon(None),

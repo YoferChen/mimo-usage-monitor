@@ -37,6 +37,7 @@ class FloatingBar:
         rect: tuple[int, int, int, int],
         opacity: float,
         locked: bool,
+        master=None,
     ) -> None:
         import tkinter as tk
 
@@ -44,7 +45,7 @@ class FloatingBar:
         self._callbacks = callbacks
         self._locked = locked
         self._press_offset = (0, 0)
-        self._root = tk.Tk()
+        self._root = tk.Toplevel(master) if master is not None else tk.Tk()
         self._root.overrideredirect(True)
         self._root.attributes("-topmost", True)
         self._root.geometry(f"{rect[2]}x{rect[3]}+{rect[0]}+{rect[1]}")
