@@ -278,7 +278,6 @@ def run() -> None:
         ("退出", callbacks["on_quit"]),
     ]
     tray = TrayDisplay(menu_items)
-    tray.set_visible(cfg.show_tray)
 
     notifier = ThresholdNotifier(cfg.threshold_pct)
 
@@ -345,5 +344,5 @@ def run() -> None:
         client.fetch_snapshot, cfg.refresh_interval_s, on_snapshot, on_error
     )
     loop.start()
-    tray.run_detached()
+    tray.run_detached(visible=cfg.show_tray)
     root.mainloop()

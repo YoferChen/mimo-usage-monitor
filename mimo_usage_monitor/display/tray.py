@@ -95,8 +95,12 @@ class TrayDisplay:
             menu=menu,
         )
 
-    def run_detached(self) -> None:
-        self._icon.run_detached()
+    def run_detached(self, visible: bool = True) -> None:
+        # 必须经 setup 钩子在图标就绪后再设 visible：
+        # 启动前置位会让 pystray 的默认显示流程变成 no-op，图标永不出现。
+        self._icon.run_detached(
+            setup=lambda icon: setattr(icon, "visible", bool(visible))
+        )
 
     def set_visible(self, visible: bool) -> None:
         self._icon.visible = bool(visible)
