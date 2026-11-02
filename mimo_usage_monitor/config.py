@@ -16,6 +16,8 @@ class AppConfig:
     floating_rect: tuple[int, int, int, int] = (0, 0, 360, 36)
     floating_opacity: float = 0.9
     floating_locked: bool = False
+    font_family: str = "Segoe UI"
+    font_size: int = 13
     autostart: bool = False
 
 

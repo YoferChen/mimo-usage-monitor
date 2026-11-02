@@ -159,6 +159,7 @@ def run() -> None:
             windows["floating"] = FloatingBar(
                 callbacks, resolved_floating_rect(), cfg.floating_opacity,
                 cfg.floating_locked, master=root,
+                font_family=cfg.font_family, font_size=cfg.font_size,
             )
         elif not enabled and "floating" in windows:
             rect = windows["floating"].rect()
@@ -201,6 +202,7 @@ def run() -> None:
             if "floating" in windows:
                 windows["floating"].apply_opacity(cfg.floating_opacity)
                 windows["floating"].set_locked(cfg.floating_locked)
+                windows["floating"].apply_font(cfg.font_family, cfg.font_size)
             tray.refresh_menu()
 
         SettingsDialog(root, cfg, on_apply)
@@ -229,6 +231,7 @@ def run() -> None:
         windows["floating"] = FloatingBar(
             callbacks, resolved_floating_rect(), cfg.floating_opacity,
             cfg.floating_locked, master=root,
+            font_family=cfg.font_family, font_size=cfg.font_size,
         )
 
     menu_items = [

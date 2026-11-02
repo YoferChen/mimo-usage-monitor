@@ -87,12 +87,16 @@ class FloatingBar:
         opacity: float,
         locked: bool,
         master=None,
+        font_family: str = "Segoe UI",
+        font_size: int = 13,
     ) -> None:
         import tkinter as tk
 
         self._tk = tk
         self._callbacks = callbacks
         self._locked = locked
+        self._font_family = font_family
+        self._font_size = font_size
         self._snapshot: UsageSnapshot | None = None
         self._press_offset = (0, 0)
         self._root = tk.Toplevel(master) if master is not None else tk.Tk()
@@ -102,23 +106,26 @@ class FloatingBar:
         self._root.wm_attributes("-alpha", opacity)
         self._root.configure(bg=CARD)
 
+        self._ring = tk.Label(self._root, bg=CARD)
+        self._ring.pack(side="left", fill="y", padx=(8, 2))
+
         self._pct = tk.Label(
             self._root,
             text="—",
-            font=("Segoe UI Variable Display", 13, "bold"),
+            font=(font_family, font_size, "bold"),
             bg=CARD,
             fg=FG,
-            padx=10,
         )
         self._pct.pack(side="left", fill="y")
 
-        self._bar = tk.Canvas(self._root, height=6, bg=CARD, highlightthickness=0)
-        self._bar.pack(side="left", fill="x", expand=True, padx=(0, 8))
-
         self._extras = tk.Label(
-            self._root, text="", font=("Segoe UI", 8), bg=CARD, fg=DIM, padx=8
+            self._root,
+            text="",
+            font=(font_family, max(7, font_size - 5)),
+            bg=CARD,
+            fg=DIM,
         )
-        self._extras.pack(side="left", fill="y")
+        self._extras.pack(side="left", fill="y", padx=(2, 8))
 
         self._resize_origin = (0, 0, 0, 0)
         self._grip = tk.Frame(
@@ -142,30 +149,26 @@ class FloatingBar:
     def _relayout(self, _event=None) -> None:
         w = self._root.winfo_width()
         tier = tier_for_width(w)
-        if w < 150:
-            self._bar.pack_forget()
-        else:
-            self._bar.pack(side="left", fill="x", expand=True, padx=(0, 8))
         if self._snapshot is not None:
             self._extras.configure(text=extras_text(self._snapshot, tier))
-        self._draw_bar()
 
-    def _draw_bar(self) -> None:
-        self._bar.delete("all")
-        w = self._bar.winfo_width()
-        if w <= 1:
-            return
-        self._bar.create_rectangle(0, 0, w, 6, fill=TRACK, width=0)
-        ratio = bar_ratio(self._snapshot)
-        if ratio is not None and ratio > 0:
-            color = pct_color(
-                self._snapshot.remaining_pct if self._snapshot else None
-            )
-            self._bar.create_rectangle(0, 0, max(2, ratio * w), 6, fill=color, width=0)
+    def _update_ring(self, pct: float | None) -> None:
+        """托盘同款圆环扇形图（render_percent_icon 复用同一视觉语言）。"""
+        try:
+            from PIL import ImageTk
+
+            from .tray import render_percent_icon
+
+            size = max(18, self._font_size + 8)
+            self._ring_img = ImageTk.PhotoImage(render_percent_icon(pct, size=size))
+            self._ring.configure(image=self._ring_img)
+        except Exception:
+            pass
 
     def update(self, s: UsageSnapshot) -> None:
         self._snapshot = s
         self._pct.configure(text=format_pct(s), fg=pct_color(s.remaining_pct))
+        self._update_ring(s.remaining_pct)
         self._relayout()
 
     # ---------- 交互 ----------
@@ -251,6 +254,13 @@ class FloatingBar:
 
     def set_locked(self, locked: bool) -> None:
         self._locked = locked
+
+    def apply_font(self, family: str, size: int) -> None:
+        self._font_family, self._font_size = family, size
+        self._pct.configure(font=(family, size, "bold"))
+        self._extras.configure(font=(family, max(7, size - 5)))
+        if self._snapshot is not None:
+            self._update_ring(self._snapshot.remaining_pct)
 
     def apply_opacity(self, opacity: float) -> None:
         self._root.wm_attributes("-alpha", opacity)

@@ -25,6 +25,15 @@ def apply_settings(cfg: AppConfig, values: dict) -> AppConfig:
         updates["threshold_pct"] = max(0.0, min(100.0, float(values["threshold_pct"])))
     if "floating_opacity" in values:
         updates["floating_opacity"] = max(0.3, min(1.0, float(values["floating_opacity"])))
+    if "font_family" in values:
+        family = str(values["font_family"]).strip()
+        if family:
+            updates["font_family"] = family
+    if "font_size" in values:
+        try:
+            updates["font_size"] = max(8, min(24, int(values["font_size"])))
+        except (TypeError, ValueError):
+            pass
     for key in _BOOL_KEYS:
         if key in values:
             updates[key] = bool(values[key])
@@ -108,6 +117,16 @@ class SettingsDialog:
         opacity.set(cfg.floating_opacity)
         opacity.pack(side="left", fill="x", expand=True)
 
+        f = row("字体")
+        family_var = tk.StringVar(value=cfg.font_family)
+        tk.Entry(f, textvariable=family_var, width=18).pack(side="left")
+
+        f = row("字号")
+        size_spin = tk.Spinbox(f, from_=8, to=24, width=5)
+        size_spin.delete(0, "end")
+        size_spin.insert(0, str(cfg.font_size))
+        size_spin.pack(side="left")
+
         checks = {}
         for key, label in (
             ("show_floating", "悬浮工具条"),
@@ -121,10 +140,18 @@ class SettingsDialog:
             checks[key] = var
 
         def on_ok():
+            def safe(cast, widget, fallback):
+                try:
+                    return cast(widget.get())
+                except (ValueError, TypeError):
+                    return fallback
+
             values = {
-                "refresh_interval_s": int(interval.get()),
-                "threshold_pct": float(threshold.get()),
+                "refresh_interval_s": safe(int, interval, cfg.refresh_interval_s),
+                "threshold_pct": safe(float, threshold, cfg.threshold_pct),
                 "floating_opacity": float(opacity.get()),
+                "font_family": family_var.get(),
+                "font_size": safe(int, size_spin, cfg.font_size),
             }
             values.update({key: var.get() for key, var in checks.items()})
             win.destroy()

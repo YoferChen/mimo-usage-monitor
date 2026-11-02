@@ -56,6 +56,15 @@ def test_set_autostart_writes_run_key():
     ]
 
 
+def test_apply_settings_font():
+    cfg = AppConfig()
+    new = apply_settings(cfg, {"font_family": "Microsoft YaHei", "font_size": 30})
+    assert new.font_family == "Microsoft YaHei"
+    assert new.font_size == 24
+    assert apply_settings(cfg, {"font_size": 3}).font_size == 8
+    assert apply_settings(cfg, {"font_family": "  "}).font_family == "Segoe UI"
+
+
 def test_refresh_loop_set_interval():
     loop = RefreshLoop(lambda: None, 60, lambda s: None, lambda e: None)
     loop.set_interval(30)
