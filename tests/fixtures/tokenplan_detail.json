@@ -1,0 +1,16 @@
+{
+  "code": 0,
+  "message": "",
+  "data": {
+    "planCode": "standard",
+    "planName": "Standard",
+    "currentPeriodEnd": "2026-11-13 23:59:59",
+    "expired": false,
+    "enableAutoRenew": true,
+    "autoRenewDiscount": null,
+    "hasAutoRenewSubscribed": true,
+    "clawEnabled": false,
+    "clawPeriodEnd": null,
+    "clawPurchased": false
+  }
+}
