@@ -18,13 +18,29 @@ def test_compute_placement_right_aligns_left_of_tray():
     assert r == Rect(1700 - 180 - 4, 1040 + (40 - 30) // 2, 180, 30)
 
 
+def test_compute_placement_left_align_avoids_existing_content():
+    taskbar = Rect(0, 1040, 1920, 40)
+    tray = Rect(1700, 1040, 220, 40)
+    r = compute_placement(taskbar, tray, align="left", left_x=240)
+    assert r == Rect(240 + 8, 1040 + (40 - 30) // 2, 180, 30)
+    r2 = compute_placement(taskbar, tray, align="left")
+    assert r2.x == taskbar.x + 8
+
+
 def test_format_taskbar_text():
     full = UsageSnapshot(
         fetched_at=NOW,
         remaining_pct=87.0,
-        expire_at=datetime(2026, 11, 25, 23, 59, 59, tzinfo=timezone.utc),
+        expire_at=datetime(2026, 11, 25, 12, 0, tzinfo=timezone.utc),
     )
     assert format_taskbar_text(full) == "余87% · 23d"
+    # 剩余天数统一按北京口径计算（23:59:59Z = 北京次日 07:59）
+    late = UsageSnapshot(
+        fetched_at=NOW,
+        remaining_pct=87.0,
+        expire_at=datetime(2026, 11, 25, 23, 59, 59, tzinfo=timezone.utc),
+    )
+    assert format_taskbar_text(late) == "余87% · 24d"
     pct_only = UsageSnapshot(fetched_at=NOW, remaining_pct=87.0)
     assert format_taskbar_text(pct_only) == "余87%"
     stale = UsageSnapshot(fetched_at=NOW, remaining_pct=87.0, is_stale=True)
@@ -41,6 +57,9 @@ class FakeWin32:
 
     def tray_notify_rect(self):
         return Rect(1700, 1040, 220, 40)
+
+    def left_cluster_right_edge(self):
+        return None
 
     def shrink_task_list(self, delta_w):
         return True

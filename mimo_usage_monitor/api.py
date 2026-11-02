@@ -48,6 +48,10 @@ class MimoApiClient:
     def fetch_snapshot(self) -> UsageSnapshot:
         detail = self._request_json(DETAIL_PATH)
         usage = self._request_json(USAGE_PATH)
+        for payload in (detail, usage):
+            code = payload.get("code") if isinstance(payload, dict) else None
+            if code not in (0, None):
+                raise ApiError(f"业务错误 code={code}", None)
         return parse_snapshot(detail, usage, datetime.now(timezone.utc))
 
     def _request_json(self, path: str) -> dict:
@@ -63,7 +67,11 @@ class MimoApiClient:
             if resp.status_code in (401, 302):
                 raise AuthExpiredError(f"{path} 返回 {resp.status_code}")
             if resp.status_code == 200:
-                return resp.json()
+                try:
+                    return resp.json()
+                except ValueError:
+                    last_error = ApiError(f"{path} 响应非 JSON", resp.status_code)
+                    continue
             last_error = ApiError(f"{path} 返回 {resp.status_code}", resp.status_code)
         if isinstance(last_error, ApiError):
             raise last_error

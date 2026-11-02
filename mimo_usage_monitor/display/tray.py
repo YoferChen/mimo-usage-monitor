@@ -83,6 +83,8 @@ class TrayDisplay:
             kwargs = {}
             if checked is not None:
                 kwargs["checked"] = lambda _item, fn=checked: fn()
+            if label == "打开控制台":
+                kwargs["default"] = True  # 托盘单击直接打开控制台
             return pystray.MenuItem(label, action, **kwargs)
 
         menu = pystray.Menu(*[build_item(item) for item in menu_items])
@@ -95,6 +97,9 @@ class TrayDisplay:
 
     def run_detached(self) -> None:
         self._icon.run_detached()
+
+    def set_visible(self, visible: bool) -> None:
+        self._icon.visible = bool(visible)
 
     def update(self, s: UsageSnapshot) -> None:
         self._snapshot = s

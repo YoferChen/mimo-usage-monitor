@@ -101,7 +101,25 @@ class FloatingBar:
         w = max(120, w0 + event.x_root - ox)
         h = max(24, h0 + event.y_root - oy)
         self._root.geometry(f"{w}x{h}")
+        self._fit_text()
         return "break"
+
+    def _fit_text(self) -> None:
+        """内容随宽度自适应：字号从 9 递减到 6，仍超长则换行。"""
+        from tkinter import font as tkfont
+
+        avail = self._root.winfo_width() - 16
+        if avail <= 0:
+            return
+        text = self._label.cget("text") or ""
+        chosen = 9
+        for size in (9, 8, 7, 6):
+            chosen = size
+            if tkfont.Font(family="Microsoft YaHei UI", size=size).measure(text) <= avail:
+                break
+        self._label.configure(
+            font=("Microsoft YaHei UI", chosen), wraplength=avail, justify="left"
+        )
 
     def _on_menu(self, event) -> None:
         menu = self._tk.Menu(self._root, tearoff=0)
@@ -118,6 +136,7 @@ class FloatingBar:
 
     def update(self, s: UsageSnapshot) -> None:
         self._label.configure(text=format_bar_text(s))
+        self._fit_text()
 
     def set_locked(self, locked: bool) -> None:
         self._locked = locked

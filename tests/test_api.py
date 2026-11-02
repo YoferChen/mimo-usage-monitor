@@ -84,6 +84,13 @@ def test_cookie_auth_sets_header():
         assert kwargs["headers"]["Cookie"] == "a=b; c=d"
 
 
+def test_business_error_raises_instead_of_blank_snapshot():
+    bad = {"code": 40301, "message": "quota locked", "data": None}
+    session = FakeSession([FakeResponse(200, bad), FakeResponse(200, bad)])
+    with pytest.raises(ApiError):
+        _client(session).fetch_snapshot()
+
+
 def test_ticket_auth_appends_query_param():
     detail, usage = _fixtures()
     session = FakeSession([FakeResponse(200, detail), FakeResponse(200, usage)])

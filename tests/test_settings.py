@@ -58,6 +58,12 @@ def test_set_autostart_writes_run_key():
     ]
 
 
+def test_apply_settings_taskbar_align():
+    cfg = AppConfig()
+    assert apply_settings(cfg, {"taskbar_align": "left"}).taskbar_align == "left"
+    assert apply_settings(cfg, {"taskbar_align": "diagonal"}).taskbar_align == "right"
+
+
 def test_refresh_loop_set_interval():
     loop = RefreshLoop(lambda: None, 60, lambda s: None, lambda e: None)
     loop.set_interval(30)

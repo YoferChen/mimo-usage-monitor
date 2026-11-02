@@ -72,8 +72,8 @@ def _open_db_cookies(db_path: Path, domain: str) -> list[tuple[str, str, bytes]]
     try:
         return con.execute(
             "SELECT host_key, name, encrypted_value FROM cookies "
-            "WHERE host_key LIKE ? ORDER BY rowid",
-            (f"%{domain}%",),
+            "WHERE host_key = ? OR host_key LIKE ? ORDER BY rowid",
+            (domain, f"%.{domain}"),
         ).fetchall()
     except sqlite3.Error:
         return None

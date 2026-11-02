@@ -4,8 +4,8 @@ import time
 from datetime import datetime, timezone
 
 from . import config
-from .api import CookieAuth, MimoApiClient
-from .auth import CONSOLE_URL, ensure_auth
+from .api import AuthExpiredError, CookieAuth, MimoApiClient
+from .auth import CONSOLE_URL, auth_to_blob, ensure_auth, login_from_edge, login_with_webview
 from .models import UsageSnapshot
 from .notify import ThresholdNotifier, threshold_message
 from .storage import get_default_store
@@ -78,6 +78,9 @@ class RefreshLoop:
     def set_interval(self, interval_s: float) -> None:
         self._interval = float(interval_s)
 
+    def set_fetch(self, fetch) -> None:
+        self._fetch = fetch
+
     def _run(self) -> None:
         while not self._stop_event.is_set():
             self._tick()
@@ -90,15 +93,24 @@ class RefreshLoop:
             snap = self._fetch()
         except Exception as exc:
             self._failures += 1
-            self._on_error(exc)
+            try:
+                self._on_error(exc)
+            except Exception:
+                pass
             if self._last_snapshot is not None:
                 stale = dataclasses.replace(self._last_snapshot, is_stale=True)
                 self._last_snapshot = stale
-                self._on_snapshot(stale)
+                try:
+                    self._on_snapshot(stale)
+                except Exception:
+                    pass
             return
         self._failures = 0
         self._last_snapshot = snap
-        self._on_snapshot(snap)
+        try:
+            self._on_snapshot(snap)
+        except Exception:
+            pass
 
 
 def run() -> None:
@@ -142,7 +154,7 @@ def run() -> None:
         return rect
 
     def make_taskbar():
-        widget = TaskbarWidget(master=root)
+        widget = TaskbarWidget(master=root, align=cfg.taskbar_align)
         if widget.try_embed():
             return widget
         rect = None
@@ -151,7 +163,12 @@ def run() -> None:
         win32 = Win32Taskbar()
         taskbar_rect, tray_rect = win32.shell_tray_rect(), win32.tray_notify_rect()
         if taskbar_rect and tray_rect:
-            rect = compute_placement(taskbar_rect, tray_rect)
+            rect = compute_placement(
+                taskbar_rect,
+                tray_rect,
+                align=cfg.taskbar_align,
+                left_x=win32.left_cluster_right_edge(),
+            )
         else:
             rect = Rect(1200, 1040, 180, 30)
         return DockedFallback(rect, master=root)
@@ -203,12 +220,17 @@ def run() -> None:
 
     def open_settings() -> None:
         def on_apply(values):
-            nonlocal cfg
+            nonlocal cfg, notifier
             cfg = apply_settings(cfg, values)
             config.save_config(data_dir, cfg)
             loop.set_interval(cfg.refresh_interval_s)
+            notifier = ThresholdNotifier(cfg.threshold_pct)  # 新阈值立即生效
             set_autostart(cfg.autostart, default_command())
+            tray.set_visible(cfg.show_tray)
             set_floating_enabled(cfg.show_floating)
+            if "taskbar" in windows:  # 位置/样式变更需重建
+                windows["taskbar"].destroy()
+                del windows["taskbar"]
             set_taskbar_enabled(cfg.show_taskbar)
             if "floating" in windows:
                 windows["floating"].apply_opacity(cfg.floating_opacity)
@@ -251,10 +273,12 @@ def run() -> None:
         ("悬浮条", callbacks["on_toggle_floating"], lambda: "floating" in windows),
         ("任务栏部件", callbacks["on_toggle_taskbar"], lambda: "taskbar" in windows),
         ("额度提醒", callbacks["on_toggle_notify"], lambda: cfg.notify_enabled),
+        ("重新登录", gui(lambda: run_relogin())),
         ("设置…", callbacks["on_open_settings"], None),
         ("退出", callbacks["on_quit"]),
     ]
     tray = TrayDisplay(menu_items)
+    tray.set_visible(cfg.show_tray)
 
     notifier = ThresholdNotifier(cfg.threshold_pct)
 
@@ -275,8 +299,47 @@ def run() -> None:
             render()
         tray.update(s)
 
+    relogin_state = {"busy": False}
+
+    def run_relogin() -> None:
+        """会话过期时自动重登一次：Edge 导入 → WebView 登录窗；失败则提示。"""
+        if relogin_state["busy"]:
+            return
+        relogin_state["busy"] = True
+
+        def attempt():
+            nonlocal client
+            try:
+                auth = None
+                try:
+                    auth = login_from_edge()
+                except Exception:
+                    pass
+                if auth is None:
+                    auth = login_with_webview()
+                if auth is not None:
+                    store.save(auth_to_blob(auth))
+                    client = MimoApiClient(auth)
+                    loop.set_fetch(client.fetch_snapshot)
+                    loop.trigger_now()
+                else:
+                    try:
+                        root.after(
+                            0,
+                            lambda: tray.notify(
+                                "登录已过期", "自动登录未成功，请右键菜单『重新登录』或重启应用"
+                            ),
+                        )
+                    except Exception:
+                        pass
+            finally:
+                relogin_state["busy"] = False
+
+        threading.Thread(target=attempt, daemon=True).start()
+
     def on_error(exc: Exception) -> None:
-        pass  # 陈旧标记由 RefreshLoop 负责
+        if isinstance(exc, AuthExpiredError):
+            run_relogin()
 
     loop = RefreshLoop(
         client.fetch_snapshot, cfg.refresh_interval_s, on_snapshot, on_error

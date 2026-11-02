@@ -14,6 +14,7 @@ class AppConfig:
     show_tray: bool = True
     show_floating: bool = True
     show_taskbar: bool = False
+    taskbar_align: str = "right"
     floating_rect: tuple[int, int, int, int] = (0, 0, 360, 36)
     floating_opacity: float = 0.9
     floating_locked: bool = False
