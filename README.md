@@ -35,6 +35,27 @@ python -m mimo_usage_monitor
 start.bat start|restart|stop|status|log|tail|clear
 ```
 
+## 开机自启
+
+**开启方式**：托盘右键 →「设置…」→ 勾选「开机自启」→ 确定。
+
+**实现机制**：写入当前用户的注册表启动项（无需管理员权限）：
+
+```
+HKCU\Software\Microsoft\Windows\CurrentVersion\Run
+  MimoUsageMonitor = "<pythonw.exe 路径>" -m mimo_usage_monitor
+```
+
+用 `pythonw.exe` 启动，登录后静默后台运行（无控制台窗口），托盘/悬浮条照常显示。
+
+**查看 / 取消**（任选其一）：
+
+- 设置里取消勾选「开机自启」
+- 任务管理器 →「启动应用」页 → 禁用 `MimoUsageMonitor`
+- 命令行：`reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v MimoUsageMonitor` / `reg delete ... /f`
+
+说明：开机自启与 `start.bat start` 互不冲突（单实例互斥，重复启动会自动退出）；`start.bat` 用于手动启停和看日志。
+
 ## 显示形态
 
 两形态可同开，独立开关（托盘右键菜单）。
