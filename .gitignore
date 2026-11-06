@@ -4,3 +4,4 @@ __pycache__/
 tools/probe_output/
 *.pyc
 .superpowers/
+logs/

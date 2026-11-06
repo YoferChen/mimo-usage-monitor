@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from . import config
 from .api import AuthExpiredError, CookieAuth, MimoApiClient
-from .auth import CONSOLE_URL, auth_to_blob, ensure_auth, login_from_edge, login_with_webview
+from .auth import CONSOLE_URL, auth_to_blob, ensure_auth, login_from_browsers, login_with_webview
 from .models import UsageSnapshot
 from .notify import ThresholdNotifier, threshold_message
 from .storage import get_default_store
@@ -34,6 +34,22 @@ def backoff_wait(interval_s: float, failures: int) -> float:
     """连续失败第 n 次后的等待秒数：interval × 2^(n-1)，封顶 300s，指数封顶防溢出。"""
     exp = min(max(failures - 1, 0), 10)
     return min(float(interval_s) * (2 ** exp), 300.0)
+
+
+def clamp_floating_rect(
+    rect: tuple[int, int, int, int], vroot: tuple[int, int, int, int]
+) -> tuple[int, int, int, int] | None:
+    """校验悬浮条位置：未放置过(0,0)或整体落在虚拟屏外返回 None（调用方给默认位置）。
+
+    vroot=(vx, vy, vw, vh) 为全部显示器的并集范围；部分超出不干预（多显示器合法摆放）。
+    """
+    x, y, w, h = rect
+    if x == 0 and y == 0:
+        return None
+    vx, vy, vw, vh = vroot
+    if x + w <= vx or x >= vx + vw or y + h <= vy or y >= vy + vh:
+        return None
+    return rect
 
 
 class RefreshLoop:
@@ -147,8 +163,14 @@ def run() -> None:
 
     def resolved_floating_rect():
         rect = cfg.floating_rect
-        if rect[0] == 0 and rect[1] == 0:  # 未放置过 → 屏幕右上
-            root.update_idletasks()
+        root.update_idletasks()
+        vroot = (
+            root.winfo_vrootx(),
+            root.winfo_vrooty(),
+            root.winfo_vrootwidth(),
+            root.winfo_vrootheight(),
+        )
+        if clamp_floating_rect(rect, vroot) is None:  # 未放置过/已不在任何屏幕内
             return (root.winfo_screenwidth() - rect[2] - 40, 60, rect[2], rect[3])
         return rect
 
@@ -267,7 +289,7 @@ def run() -> None:
     relogin_state = {"busy": False}
 
     def run_relogin() -> None:
-        """会话过期时自动重登一次：Edge 导入 → WebView 登录窗；失败则提示。"""
+        """会话过期时自动重登一次：Edge/Chrome 导入 → WebView 登录窗；失败则提示。"""
         if relogin_state["busy"]:
             return
         relogin_state["busy"] = True
@@ -275,11 +297,7 @@ def run() -> None:
         def attempt():
             nonlocal client
             try:
-                auth = None
-                try:
-                    auth = login_from_edge()
-                except Exception:
-                    pass
+                auth = login_from_browsers()
                 if auth is None:
                     auth = login_with_webview()
                 if auth is not None:

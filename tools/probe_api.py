@@ -1,6 +1,6 @@
 """探查 platform.xiaomimimo.com 的 tokenPlan 接口并采集响应结构。
 
-凭证来源优先级：Edge 已登录 cookie → WebView 登录窗。
+凭证来源优先级：Edge/Chrome 已登录 cookie → WebView 登录窗。
 原始响应写入 tools/probe_output/（gitignore），stdout 打印 key 路径树。
 """
 
@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import requests
 
-from mimo_usage_monitor.browser_cookies import load_edge_cookie_header
+from mimo_usage_monitor.browser_cookies import load_chromium_cookie_header
 
 BASE = "https://platform.xiaomimimo.com"
 ENDPOINTS = {
@@ -35,15 +35,19 @@ def key_tree(obj, prefix=""):
         print(f"{prefix} -> {type(obj).__name__} = {obj!r}"[:160])
 
 
-def via_edge() -> str | None:
-    user_data = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "Edge" / "User Data"
-    header = load_edge_cookie_header(user_data, "xiaomimimo.com")
-    if header:
-        names = [p.split("=", 1)[0] for p in header.split("; ")]
-        print(f"[edge] 取到 cookie: {names}")
-    else:
-        print("[edge] 未取到（未登录 / 被锁 / v20 加密）")
-    return header
+def via_browser() -> str | None:
+    local = Path(os.environ.get("LOCALAPPDATA", ""))
+    for label, user_data in (
+        ("edge", local / "Microsoft" / "Edge" / "User Data"),
+        ("chrome", local / "Google" / "Chrome" / "User Data"),
+    ):
+        header = load_chromium_cookie_header(user_data, "xiaomimimo.com")
+        if header:
+            names = [p.split("=", 1)[0] for p in header.split("; ")]
+            print(f"[{label}] 取到 cookie: {names}")
+            return header
+        print(f"[{label}] 未取到（未登录 / 被锁 / v20 加密）")
+    return None
 
 
 def _cookie_pairs(cookies) -> list[tuple[str, str]]:
@@ -106,10 +110,10 @@ def via_webview() -> str | None:
 
 def main():
     if len(sys.argv) > 2 and sys.argv[1] == "--user-data-dir":
-        header = load_edge_cookie_header(Path(sys.argv[2]), "xiaomimimo.com")
+        header = load_chromium_cookie_header(Path(sys.argv[2]), "xiaomimimo.com")
         print(f"[user-data-dir] {'取到' if header else '未取到'} cookie")
     else:
-        header = via_edge() or via_webview()
+        header = via_browser() or via_webview()
     if not header:
         print("未能取得凭证，退出。")
         sys.exit(1)

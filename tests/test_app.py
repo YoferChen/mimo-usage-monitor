@@ -2,7 +2,12 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from mimo_usage_monitor.app import RefreshLoop, acquire_single_instance, backoff_wait
+from mimo_usage_monitor.app import (
+    RefreshLoop,
+    acquire_single_instance,
+    backoff_wait,
+    clamp_floating_rect,
+)
 from mimo_usage_monitor.models import UsageSnapshot
 
 NOW = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
@@ -119,3 +124,27 @@ def test_trigger_now_shortens_wait():
     finally:
         loop.stop()
     assert len(got) >= 2
+
+
+FULLSCREEN_VROOT = (0, 0, 1600, 1000)
+
+
+def test_clamp_rect_unplaced_returns_none():
+    assert clamp_floating_rect((0, 0, 126, 40), FULLSCREEN_VROOT) is None
+
+
+def test_clamp_rect_off_screen_returns_none():
+    # 实际踩过的坑：位置保存于旧的大屏（y=1945），换到 1600x1000 后整体在屏外
+    assert clamp_floating_rect((600, 1945, 126, 40), FULLSCREEN_VROOT) is None
+    assert clamp_floating_rect((2000, 500, 126, 40), FULLSCREEN_VROOT) is None
+    assert clamp_floating_rect((-200, -100, 126, 40), FULLSCREEN_VROOT) is None
+
+
+def test_clamp_rect_visible_is_kept():
+    rect = (600, 500, 126, 40)
+    assert clamp_floating_rect(rect, FULLSCREEN_VROOT) == rect
+
+
+def test_clamp_rect_multi_monitor_negative_coords_kept():
+    rect = (-800, 200, 126, 40)  # 主屏左侧的副屏
+    assert clamp_floating_rect(rect, (-1280, 0, 2880, 1000)) == rect

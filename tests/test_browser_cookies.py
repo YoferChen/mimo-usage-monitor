@@ -4,7 +4,7 @@ import sqlite3
 
 import pytest
 
-from mimo_usage_monitor.browser_cookies import load_edge_cookie_header
+from mimo_usage_monitor.browser_cookies import load_chromium_cookie_header
 from mimo_usage_monitor.storage import dpapi_protect
 
 SCHEMA = "CREATE TABLE cookies(host_key TEXT, name TEXT, encrypted_value BLOB)"
@@ -42,13 +42,13 @@ def test_returns_cookie_header_for_domain(tmp_path):
             (".other.com", "x", "y", None),
         ],
     )
-    header = load_edge_cookie_header(tmp_path, "xiaomimimo.com")
+    header = load_chromium_cookie_header(tmp_path, "xiaomimimo.com")
     assert header == "serviceToken=tok-1; userId=42"
 
 
 def test_returns_none_when_no_match(tmp_path):
     _make_profile(tmp_path, b"K" * 32, [(".other.com", "x", "y", None)])
-    assert load_edge_cookie_header(tmp_path, "xiaomimimo.com") is None
+    assert load_chromium_cookie_header(tmp_path, "xiaomimimo.com") is None
 
 
 def test_returns_none_on_v20_app_bound_value(tmp_path):
@@ -57,11 +57,11 @@ def test_returns_none_on_v20_app_bound_value(tmp_path):
         b"K" * 32,
         [(".xiaomimimo.com", "serviceToken", "ignored", b"v20" + b"\x00" * 32)],
     )
-    assert load_edge_cookie_header(tmp_path, "xiaomimimo.com") is None
+    assert load_chromium_cookie_header(tmp_path, "xiaomimimo.com") is None
 
 
 def test_returns_none_on_missing_user_data(tmp_path):
-    assert load_edge_cookie_header(tmp_path / "nope", "xiaomimimo.com") is None
+    assert load_chromium_cookie_header(tmp_path / "nope", "xiaomimimo.com") is None
 
 
 def test_strips_host_hash_prefix(tmp_path):
@@ -75,4 +75,4 @@ def test_strips_host_hash_prefix(tmp_path):
     nonce = b"N" * 12
     blob = b"v10" + nonce + AESGCM(key).encrypt(nonce, prefixed, None)
     _make_profile(tmp_path, key, [(host, "serviceToken", "", blob)])
-    assert load_edge_cookie_header(tmp_path, "xiaomimimo.com") == "serviceToken=tok-1"
+    assert load_chromium_cookie_header(tmp_path, "xiaomimimo.com") == "serviceToken=tok-1"
